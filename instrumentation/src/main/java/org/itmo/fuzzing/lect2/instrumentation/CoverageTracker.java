@@ -32,9 +32,8 @@ public class CoverageTracker {
     public static record Dist(Integer distance, String tile) implements Comparable<Dist> {
       @Override
       public int compareTo(Dist other) {
-        if (other.distance != this.distance)
-          return this.distance.compareTo(other.distance);
-        return this.tile.compareTo(other.tile);
+        int c = distance.compareTo(other.distance);
+        return (c != 0) ? c : tile.compareTo(other.tile);
       }
     }
 
@@ -60,6 +59,9 @@ public class CoverageTracker {
         }
 
         lastMax = value.distance;
+        if (target_distance.containsKey(value.tile)) {
+          continue;
+        }
         target_distance.put(value.tile, value.distance);
         r_call_graph.get(value.tile).forEach(y -> {
           if (!target_distance.containsKey(y)) {

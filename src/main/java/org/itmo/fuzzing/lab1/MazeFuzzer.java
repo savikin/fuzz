@@ -124,8 +124,8 @@ public final class MazeFuzzer {
       final var ok = runs.filter(Stats::success);
       System.out.printf("%s: success %d/%d, median attempts %s, avg %s ms%n",
           mode, ok.size(), runs.size(),
-          median(runs.map(s -> (double) s.attempts())),
-          avg(runs.map(s -> (double) s.time().toMillis())));
+          median(runs.filter(s -> s.success).map(s -> (double) s.attempts())),
+              avg(runs.map(s -> (double) s.time().toMillis())));
     }
 
     private static String avg(final List<Double> xs) {
