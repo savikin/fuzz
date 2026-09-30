@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":instrumentation"))
     implementation("org.ow2.asm:asm:9.9")
     implementation("org.jsoup:jsoup:1.18.1")
+    implementation("io.vavr:vavr:1.0.1")
 
     testImplementation(platform("org.junit:junit-bom:6.0.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")

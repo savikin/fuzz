@@ -1,13 +1,19 @@
 package org.itmo.fuzzing.lect2.instrumentation;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 public class CoverageTracker {
 
     public static final ConcurrentSkipListSet<String> coverage = new ConcurrentSkipListSet<String>();
     public static final ConcurrentSkipListSet<String> fullCoverage = new ConcurrentSkipListSet<String>();
+    public static final ConcurrentHashMap<String, Set<String>> call_graph = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, Integer> target_distance = new ConcurrentHashMap<>();
 
     public static void logCoverage(String methodSignature, String lineNumber) {
         coverage.add(methodSignature + ":" + lineNumber);
@@ -15,6 +21,52 @@ public class CoverageTracker {
 
     public static void logFullCoverage(String methodSignature, String lineNumber) {
         fullCoverage.add(methodSignature + ":" + lineNumber);
+    }
+
+    public static void logStaticEdge(String caller, String callee) {
+      if (caller.startsWith("tile_") && callee.startsWith("tile_")) {
+        call_graph.computeIfAbsent(caller, _ -> ConcurrentHashMap.newKeySet()).add(callee);
+      }
+    }
+
+    public static record Dist(Integer distance, String tile) implements Comparable<Dist> {
+      @Override
+      public int compareTo(Dist other) {
+        if (other.distance != this.distance)
+          return this.distance.compareTo(other.distance);
+        return this.tile.compareTo(other.tile);
+      }
+    }
+
+    public static final synchronized void calculate_path() {
+      final var q = new PriorityQueue<Dist>();
+      q.add(new Dist(0, "tile_5_7"));
+
+      final HashMap<String, HashSet<String>> r_call_graph = new HashMap<>();
+      for (final var i : call_graph.entrySet()) {
+        final var from = i.getKey();
+        for (final var to : i.getValue()) {
+          r_call_graph.computeIfAbsent(to, _ -> new HashSet<String>()).add(from);
+        }
+      }
+
+      int lastMax = 0;
+      while (!q.isEmpty()) {
+        final var value = q.poll();
+        if (lastMax > value.distance) {
+          System.out.println("BFS error");
+          System.err.println("BFS error");
+          System.exit(1);
+        }
+
+        lastMax = value.distance;
+        target_distance.put(value.tile, value.distance);
+        r_call_graph.get(value.tile).forEach(y -> {
+          if (!target_distance.containsKey(y)) {
+            q.add(new Dist(value.distance + 1, y));
+          }
+        });
+      }
     }
 
     /**

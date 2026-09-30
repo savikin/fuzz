@@ -52,9 +52,11 @@ public final class MazeMutator extends FuzzMutator {
      *
      * @param maxLength максимальная допустимая длина результата
      */
-    public MazeMutator(int maxLength) {
-        this.maxLength = maxLength;
-        // TODO: проверьте корректность ограничения длины.
+    public MazeMutator(final int maxLength) {
+      if (maxLength <= 0) {
+        throw new IllegalArgumentException("Meaningless maxLength in MazeMutator");
+      }
+      this.maxLength = maxLength;
     }
 
     /**
@@ -64,42 +66,88 @@ public final class MazeMutator extends FuzzMutator {
      * @return мутированный маршрут из символов {@link #ALPHABET}, не длиннее {@link #maxLength}
      */
     @Override
-    public String mutate(String input) {
-        // TODO: выбрать append, insert, replace или delete с заданными вами вероятностями.
-        throw new UnsupportedOperationException("Реализуйте выбор операции мутации");
+    public String mutate(final String input) {
+      switch (this.random.nextInt() & 3) {
+        case 0:
+          return this.append(input);
+        case 1:
+          return this.insert(input);
+        case 2:
+          return this.replace(input);
+        case 3:
+          return this.delete(input);
+      }
+      throw new IllegalStateException("O_O HOW DID YOU DO THAT???!!!");
+    }
+
+    private final char random_move() {
+      return ALPHABET.charAt(random.nextInt() & 3);
+    }
+
+    private final int random_pos(String input) {
+      return random.nextInt(input.length());
+    }
+
+    private final void validate(String input) {
+      if (input.length() > maxLength) {
+        throw new IllegalStateException("ILLEGAL MUTATOR STATE");
+      }
     }
 
     /**
      * Добавляет случайный символ из {@link #ALPHABET} в конец строки, не превышая
      * {@link #maxLength}.
      */
-    public String append(String input) {
-        // TODO: реализовать добавление хода.
-        throw new UnsupportedOperationException("Реализуйте append");
+    public String append(final String input) {
+      validate(input);
+      if (input.length() < maxLength) {
+        return input + random_move();
+      }
+      return replace(input);
     }
 
     /**
      * Вставляет случайный символ из {@link #ALPHABET} в случайную позицию, не превышая
      * {@link #maxLength}.
      */
-    public String insert(String input) {
-        // TODO: реализовать вставку хода.
-        throw new UnsupportedOperationException("Реализуйте insert");
+    public String insert(final String input) {
+      validate(input);
+      if (input.isEmpty()) {
+        return append(input);
+      } else if (input.length() < maxLength) {
+        final var ret = new StringBuilder(input);
+
+        ret.insert(random_pos(input), random_move());
+        return ret.toString();
+      }
+      return replace(input);
     }
 
     /**
      * Заменяет случайный символ маршрута на символ из {@link #ALPHABET}.
      */
-    public String replace(String input) {
-        // TODO: реализовать замену хода и обработать пустую строку.
-        throw new UnsupportedOperationException("Реализуйте replace");
+    public String replace(final String input) {
+      validate(input);
+      if (input.isEmpty()) {
+        return append(input);
+      }
+      final var ret = new StringBuilder(input);
+
+      ret.setCharAt(random_pos(input), random_move());
+      return ret.toString();
     }
 
     /**
      * Удаляет случайный символ маршрута; для пустой строки возвращает пустую строку.
      */
-    public String delete(String input) {
-        // TODO: реализовать удаление хода и обработать пустую строку.
-        throw new UnsupportedOperationException("Реализуйте delete");
+    public String delete(final String input) {
+      validate(input);
+      if (input.isEmpty()) {
+        return "";
+      }
+      final var ret = new StringBuilder(input);
+
+      ret.deleteCharAt(random_pos(input));
+      return ret.toString();
     }
 }

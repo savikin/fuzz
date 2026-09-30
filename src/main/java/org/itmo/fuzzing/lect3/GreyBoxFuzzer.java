@@ -34,8 +34,8 @@ public class GreyBoxFuzzer extends AdvancedMutationFuzzer {
         FunctionRunner.Tuple<Object, String> resultOutcome = runner.run(input);
         Object result = resultOutcome.first;
         if (!SetUtils.diff(runner.coverage, coveragesSeen).isEmpty()) {
-            System.out.println("NEW COVERAGE");
-            System.out.println("INPUT = " + input);
+            //System.out.println("NEW COVERAGE");
+            //System.out.println("INPUT = " + input);
             // Adding seed to population
             Seed s = new Seed(input);
             s.coverage.addAll(runner.coverage.stream()

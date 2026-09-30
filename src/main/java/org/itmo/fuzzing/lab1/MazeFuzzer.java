@@ -1,5 +1,9 @@
 package org.itmo.fuzzing.lab1;
 
+
+import java.time.Duration;
+import java.time.Instant;
+
 import org.itmo.fuzzing.lect2.FunctionRunner;
 import org.itmo.fuzzing.lect3.AFLFastSchedule;
 import org.itmo.fuzzing.lect3.AdvancedMutationFuzzer;
@@ -7,6 +11,8 @@ import org.itmo.fuzzing.lect3.CountingGreyboxFuzzer;
 import org.itmo.fuzzing.lect3.GreyBoxFuzzer;
 import org.itmo.fuzzing.lect3.PowerSchedule;
 import org.itmo.fuzzing.lect3.Seed;
+
+import io.vavr.collection.List;
 
 /**
  * Точка входа первой лабораторной работы: поиск входа, для которого
@@ -85,18 +91,113 @@ import org.itmo.fuzzing.lect3.Seed;
  * маршрут в начальный corpus.</p>
  */
 public final class MazeFuzzer {
+    private static final int MAX_ITERS = 1_000_000;
+    private static final Duration MAX_DURATION = Duration.ofSeconds(3);
+    private static final int RUNS_PER_TYPE = 10;
 
     private MazeFuzzer() {
     }
 
-    /**
-     * Реализуйте здесь конфигурацию и запуск трёх режимов на каркасе из лекции 3, а также вывод
-     * сопоставимых результатов эксперимента.
-     *
-     * @param args параметры запуска в выбранном вами формате
-     */
-    public static void main(String[] args) {
-        // TODO: настроить и запустить dumb black-box, coverage-guided и directed режимы.
-        throw new UnsupportedOperationException("Реализуйте фаззеры первой лабораторной работы");
+    record Stats(Boolean success, int attempts, Duration time) {
+    };
+
+    public static void main(final String[] args) {
+      System.out.println("running black box");
+      final var bb = List.fill(RUNS_PER_TYPE, () -> black_box());
+      System.out.println("running coverage based");
+      final var cov = List.fill(RUNS_PER_TYPE, () -> coverage_guided());
+      System.out.println("running directed stats");
+      final var dir = List.fill(RUNS_PER_TYPE, () -> directed());
+
+      System.out.println("Black box");
+      bb.forEach(MazeFuzzer::print_stats);
+      System.out.println("Coverage based");
+      cov.forEach(MazeFuzzer::print_stats);
+      System.out.println("Directed stats");
+      dir.forEach(MazeFuzzer::print_stats);
+      summary("Black", bb);
+      summary("Coverage", cov);
+      summary("Directed", dir);
+    }
+
+    private static void summary(final String mode, final List<Stats> runs) {
+      final var ok = runs.filter(Stats::success);
+      System.out.printf("%s: success %d/%d, median attempts %s, avg %s ms%n",
+          mode, ok.size(), runs.size(),
+          median(runs.map(s -> (double) s.attempts())),
+          avg(runs.map(s -> (double) s.time().toMillis())));
+    }
+
+    private static String avg(final List<Double> xs) {
+      if (xs.isEmpty())
+        return "n/a";
+      return Integer.toString(xs.sum().intValue() / xs.length());
+    }
+
+    private static String median(final List<Double> xs) {
+      if (xs.isEmpty()) {
+        return "n/a";
+      }
+
+      final var sorted = xs.sorted();
+      final int n = sorted.length();
+
+      return String.format(
+          "%.1f",
+          (sorted.get((n - 1) / 2) + sorted.get(n / 2)) / 2.0);
+    }
+
+    private static final void print_stats(final Stats stats) {
+      System.out.println("OK: " + stats.success + "; attempts: " + stats.attempts + "; time: " + stats.time);
+    }
+
+
+    private static final Duration timed(final Instant start) {
+      return Duration.between(start, Instant.now());
+    }
+    
+    private static final Stats run_fuzzing(final AdvancedMutationFuzzer fuzzer) {
+      final var start = Instant.now();
+      final var runner = new FunctionRunner(MazeGenerated::maze);
+
+      int i = 0;
+      for (; i < MAX_ITERS && timed(start).compareTo(MAX_DURATION) < 0; ++i) {
+        final String value = fuzzer.fuzz();
+
+        final String res = (String) (fuzzer.run(runner, value));
+
+        if (res.contains("SOLVED")) {
+          return new Stats(true, i+1, timed(start));
+        }
+      }
+      return new Stats(false, i, timed(start));
+    }
+
+
+    private static final Stats black_box() {
+      final var fuzzer = new AdvancedMutationFuzzer(
+          List.of("D").asJava(),
+          new MazeMutator(),
+          new PowerSchedule(),
+          1, 30);
+      return run_fuzzing(fuzzer);
+    }
+
+    private static final Stats coverage_guided() {
+      final var fuzzer = new GreyBoxFuzzer(
+          List.of("D").asJava(),
+          new MazeMutator(),
+          new PowerSchedule(),
+          1, 1);
+      return run_fuzzing(fuzzer);
+    }
+
+    private static final Stats directed() {
+      final var fuzzer = new GreyBoxFuzzer(
+          List.of("D").asJava(),
+          new MazeMutator(),
+          new DirectedSchedule(),
+          1, 1);
+      return run_fuzzing(fuzzer);
     }
 }

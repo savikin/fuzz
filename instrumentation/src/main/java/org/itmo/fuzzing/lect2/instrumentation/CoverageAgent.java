@@ -14,8 +14,7 @@ public class CoverageAgent {
      * {@code -javaagent:coverage-agent.jar=org/jsoup,org/itmo/fuzzing/lab1}
      */
     private static final String[] DEFAULT_INCLUDES = {
-            "org/jsoup",
-            "org/itmo/fuzzing/lab1",
+            "org/itmo/fuzzing/lab1/MazeGenerated",
     };
 
     public static void premain(String agentArgs, Instrumentation inst) {
@@ -31,6 +30,7 @@ public class CoverageAgent {
                 }
                 for (String include : includes) {
                     if (className.contains(include)) {
+                        System.out.println("instrumenting " + className);
                         return asmTransformClass(className, classfileBuffer);
                     }
                 }
@@ -50,38 +50,13 @@ public class CoverageAgent {
                 .toArray(String[]::new);
     }
 
-//    private static byte[] asmTransformClass(String className, byte[] classfileBuffer) {
-//        ClassReader cr = new ClassReader(classfileBuffer);
-//        ClassWriter cw = new ClassWriter(cr, ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-//        ClassVisitor cv = new ClassVisitor(Opcodes.ASM9, cw) {
-//            @Override
-//            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-//                MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-//                return new MethodVisitor(Opcodes.ASM9, mv) {
-//
-//                    @Override
-//                    public void visitLineNumber(int line, Label start) {
-//                        super.visitLineNumber(line, start);
-//                        CoverageTracker.logFullCoverage(name, Integer.toString(line));
-//                        mv.visitLdcInsn(name);
-//                        mv.visitLdcInsn(Integer.toString(line));
-//                        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "org/itmo/fuzzing/lect2/instrumentation/CoverageTracker", "logCoverage", "(Ljava/lang/String;Ljava/lang/String;)V", false);
-//                    }
-//
-//                };
-//            }
-//        };
-//        cr.accept(cv, 0);
-//        return cw.toByteArray();
-//    }
-
-
     private static byte[] asmTransformClass(String className, byte[] classfileBuffer) {
         ClassReader cr = new ClassReader(classfileBuffer);
         ClassWriter cw = new ClassWriter(cr, ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         ClassVisitor cv = new ClassVisitor(Opcodes.ASM9, cw) {
             @Override
             public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                
                 MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
                 return new MethodVisitor(Opcodes.ASM9, mv) {
 
@@ -131,11 +106,15 @@ public class CoverageAgent {
                         super.visitFieldInsn(opcode, owner, name, descriptor);
                     }
 
-                    @Override
-                    public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                        instrumentIfNeeded();
-                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
-                    }
+              @Override
+              public void visitMethodInsn(int opcode, String owner, String callee_name, String descriptor,
+                  boolean isInterface) {
+                instrumentIfNeeded();
+                if (owner.equals(className)) {
+                  CoverageTracker.logStaticEdge(name, callee_name);
+                }
+                super.visitMethodInsn(opcode, owner, callee_name, descriptor, isInterface);
+              }
 
                     @Override
                     public void visitJumpInsn(int opcode, Label label) {
@@ -158,6 +137,7 @@ public class CoverageAgent {
             }
         };
         cr.accept(cv, 0);
+        CoverageTracker.calculate_path();
         return cw.toByteArray();
     }
 }
